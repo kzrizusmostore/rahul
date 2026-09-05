@@ -121,7 +121,8 @@
   // Diam.png = pose diam. runA/runB/runC/runD = 4 pose lari, bergantian tiap 250ms
   // (total 4 x 250ms = 1 detik per siklus, berulang terus selama tombol LARI ditahan).
   var ASSET_PATH = 'Rahul/';
-  var spriteFiles = { idle:'Diam.png', a:'runA.png', b:'runB.png', c:'runC.png', d:'runD.png' };
+  var spriteFiles = { idle:'Diam.png', a:'runA.png', b:'runB.png', c:'runC.png', d:'runD.png',
+    j1:'jump1.png', j2:'jump2.png', j3:'jump3.png', j4:'jump4.png', j5:'jump5.png', j6:'jump6.png' };
   var sprites = {};
   Object.keys(spriteFiles).forEach(function(key){
     var img = new Image();
@@ -132,6 +133,7 @@
     sprites[key] = entry;
   });
   var runOrder = ['a','b','c','d'];
+  var jumpOrder = ['j1','j2','j3','j4','j5','j6'];
 
 
 
@@ -408,8 +410,8 @@
     ctx.restore();
   }
 
-  function drawCharacter(x, y, w, h, running, frameIdx){
-    var key = running ? runOrder[frameIdx] : 'idle';
+  function drawCharacter(x, y, w, h, running, frameIdx, jumping, jumpFrameIdx){
+    var key = jumping ? jumpOrder[jumpFrameIdx] : (running ? runOrder[frameIdx] : 'idle');
     var spr = sprites[key];
 
     ctx.save();
@@ -443,7 +445,14 @@
     ctx.ellipse(px+w/2, groundTopY+4, w*0.35*shadowScale, 6*shadowScale, 0, 0, Math.PI*2);
     ctx.fill();
 
-    drawCharacter(px, py, w, h, player.running, player.frameIdx);
+    var jumpFrameIdx = 0;
+    if (!player.onGround){
+      // vy negatif = sedang naik, vy positif = sedang turun.
+      // Peta rentang kecepatan vertikal ke 6 pose: naik cepat -> naik pelan -> puncak -> mulai turun -> turun cepat -> turun sangat cepat.
+      var vRatio = Math.max(-1, Math.min(1, player.vy / Math.abs(JUMP_VELOCITY)));
+      jumpFrameIdx = Math.min(5, Math.floor((vRatio + 1) / 2 * 6));
+    }
+    drawCharacter(px, py, w, h, player.running, player.frameIdx, !player.onGround, jumpFrameIdx);
     ctx.restore();
   }
 
