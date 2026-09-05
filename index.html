@@ -29,6 +29,10 @@
   .hud-pill{ background:var(--cream); border:3px solid var(--ink); border-radius:999px;
     padding:8px 14px; font-family:'Press Start 2P',monospace; font-size:clamp(10px,3vw,14px);
     color:var(--ink); box-shadow:0 3px 0 var(--ink); display:flex; align-items:center; gap:6px; }
+  #fullscreenBtn{ pointer-events:auto; cursor:pointer; background:var(--cream); border:3px solid var(--ink);
+    border-radius:50%; width:clamp(34px,8vw,42px); height:clamp(34px,8vw,42px); font-size:clamp(14px,4vw,18px);
+    box-shadow:0 3px 0 var(--ink); display:flex; align-items:center; justify-content:center; color:var(--ink); }
+  #fullscreenBtn:active{ transform:translateY(3px); box-shadow:0 0 0 var(--ink); }
   #livesWrap{ background:var(--cream); border:3px solid var(--ink); border-radius:999px;
     padding:8px 12px; box-shadow:0 3px 0 var(--ink); display:flex; gap:3px; align-items:center; }
   #livesWrap span{ font-size:clamp(14px,4vw,20px); line-height:1; }
@@ -69,6 +73,7 @@
     <div class="hud-pill">SKOR <span id="scoreVal">0</span></div>
     <div id="livesWrap"></div>
     <div class="hud-pill">🪙 <span id="coinVal">0</span></div>
+    <button id="fullscreenBtn" title="Layar penuh">⛶</button>
   </div>
 
   <div id="startScreen" class="overlay">
@@ -157,7 +162,7 @@
   initClouds();
 
   function computeMetrics(){
-    player.h = CH*0.16;
+    player.h = CH*0.26;
     player.w = player.h*0.78;
     groundTopY = CH*0.80;
     if (player.onGround || state !== 'playing'){ player.y = groundTopY - player.h; }
@@ -174,6 +179,7 @@
   var jumpBtn = document.getElementById('jumpBtn');
   var startBtn = document.getElementById('startBtn');
   var retryBtn = document.getElementById('retryBtn');
+  var fullscreenBtn = document.getElementById('fullscreenBtn');
 
   function updateHUD(){
     scoreVal.textContent = score;
@@ -486,6 +492,9 @@
   // ================= GAME FLOW =================
   function startGame(){
     ensureAudio();
+    if (!isFullscreen()){
+      try { toggleFullscreen(); } catch(e){}
+    }
     state = 'playing';
     score = 0; coins = 0; lives = 3;
     obstacles = []; orbs = [];
@@ -506,6 +515,25 @@
 
   startBtn.addEventListener('click', startGame);
   retryBtn.addEventListener('click', startGame);
+
+  // ================= LAYAR PENUH =================
+  function isFullscreen(){
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+  }
+  function toggleFullscreen(){
+    var el = document.documentElement;
+    if (!isFullscreen()){
+      var req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+      if (req) req.call(el);
+    } else {
+      var exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+      if (exit) exit.call(document);
+    }
+  }
+  function updateFsIcon(){ fullscreenBtn.textContent = isFullscreen() ? '⤢' : '⛶'; }
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+  document.addEventListener('fullscreenchange', updateFsIcon);
+  document.addEventListener('webkitfullscreenchange', updateFsIcon);
 
   // ================= LOOP =================
   var lastTime = performance.now();
