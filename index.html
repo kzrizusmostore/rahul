@@ -446,13 +446,23 @@
     ctx.fill();
 
     var jumpFrameIdx = 0;
+    var jumpXOffset = 0, jumpYExtra = 0;
     if (!player.onGround){
       // vy negatif = sedang naik, vy positif = sedang turun.
       // Peta rentang kecepatan vertikal ke 6 pose: naik cepat -> naik pelan -> puncak -> mulai turun -> turun cepat -> turun sangat cepat.
       var vRatio = Math.max(-1, Math.min(1, player.vy / Math.abs(JUMP_VELOCITY)));
       jumpFrameIdx = Math.min(5, Math.floor((vRatio + 1) / 2 * 6));
+
+      // Karakter condong maju selama melompat: dorong ke depan seiring lompatan berlangsung,
+      // memakai kurva naik-turun (0 di lepas landas & mendarat, puncak di tengah lompatan) berbasis fase vertikal (vRatio),
+      // supaya proporsional walau tinggi lompatan aktualnya kecil dibanding tinggi layar.
+      var airProgress = (vRatio + 1) / 2; // 0 = baru lompat, 0.5 = puncak, 1 = hampir mendarat
+      jumpXOffset = Math.sin(airProgress * Math.PI) * w * 0.35;
+
+      // jump5 dinaikkan lagi sekitar 25% dari tinggi karakter
+      if (jumpFrameIdx === 4){ jumpYExtra = -h * 0.25; }
     }
-    drawCharacter(px, py, w, h, player.running, player.frameIdx, !player.onGround, jumpFrameIdx);
+    drawCharacter(px + jumpXOffset, py + jumpYExtra, w, h, player.running, player.frameIdx, !player.onGround, jumpFrameIdx);
     ctx.restore();
   }
 
