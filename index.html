@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>SUPER RAHULLL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --sky-top:#7EC8F2;
+    --sky-bottom:#BFE8FF;
+    --grass:#4CAF50;
+    --dirt:#8B5A2B;
+    --dirt-dark:#6b431f;
+    --sun:#FFD34D;
+    --ink:#2B2118;
+    --cream:#FFF8E7;
+    --run-1:#3EA6F2; --run-2:#2273B5;
+    --jump-1:#F2543E; --jump-2:#B52222;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; height:100%; overflow:hidden; background:#000; font-family:'Baloo 2',sans-serif; }
+  #stage{ position:relative; width:100vw; height:100dvh; overflow:hidden; }
+  canvas{ display:block; width:100%; height:100%; touch-action:none; }
+
+  #hud{ position:absolute; top:max(12px,env(safe-area-inset-top)); left:12px; right:12px;
+    display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; z-index:5; }
+  .hud-pill{ background:var(--cream); border:3px solid var(--ink); border-radius:999px;
+    padding:8px 14px; font-family:'Press Start 2P',monospace; font-size:clamp(10px,3vw,14px);
+    color:var(--ink); box-shadow:0 3px 0 var(--ink); display:flex; align-items:center; gap:6px; }
+  #livesWrap{ background:var(--cream); border:3px solid var(--ink); border-radius:999px;
+    padding:8px 12px; box-shadow:0 3px 0 var(--ink); display:flex; gap:3px; align-items:center; }
+  #livesWrap span{ font-size:clamp(14px,4vw,20px); line-height:1; }
+
+  .overlay{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:16px; background:rgba(10,25,45,0.55); backdrop-filter:blur(2px);
+    text-align:center; padding:24px; z-index:10; }
+  .overlay.hidden{ display:none; }
+  .title{ font-family:'Press Start 2P',monospace; color:#fff; font-size:clamp(28px,9vw,56px);
+    line-height:1.35; letter-spacing:2px; margin:0;
+    text-shadow:4px 4px 0 var(--jump-1), 0 0 24px rgba(0,0,0,.45); }
+  .title.small{ font-size:clamp(20px,6vw,32px); }
+  .tagline{ font-family:'Baloo 2',sans-serif; font-weight:700; color:#fff; font-size:clamp(14px,4vw,18px); margin:0; }
+  .hint{ font-family:'Baloo 2',sans-serif; color:#f0f0f0; font-size:clamp(11px,3vw,13px);
+    max-width:360px; line-height:1.6; margin:0; }
+  .big-btn{ font-family:'Press Start 2P',monospace; font-size:clamp(14px,4vw,18px); color:var(--ink);
+    background:var(--sun); border:4px solid var(--ink); border-radius:16px; padding:14px 30px;
+    box-shadow:0 6px 0 #b8860b; cursor:pointer; transition:transform .08s, box-shadow .08s; }
+  .big-btn:active{ transform:translateY(6px); box-shadow:0 0 0 #b8860b; }
+
+  #controls{ position:absolute; bottom:max(20px,env(safe-area-inset-bottom)); left:0; right:0;
+    display:flex; justify-content:space-between; padding:0 24px; z-index:5; pointer-events:none; }
+  .ctrl-btn{ pointer-events:auto; width:clamp(78px,22vw,108px); height:clamp(78px,22vw,108px);
+    border-radius:50%; border:4px solid var(--ink); font-family:'Press Start 2P',monospace;
+    font-size:clamp(9px,2.6vw,12px); color:#fff; user-select:none; touch-action:none;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 6px 0 rgba(0,0,0,.35);
+    transition:transform .06s, box-shadow .06s; opacity:0.95; }
+  .run-btn{ background:linear-gradient(var(--run-1),var(--run-2)); }
+  .jump-btn{ background:linear-gradient(var(--jump-1),var(--jump-2)); }
+  .ctrl-btn.pressed{ transform:translateY(6px); box-shadow:0 0 0 rgba(0,0,0,.35); }
+
+  /* ---- Paksa mode LANDSCAPE ---- */
+  #rotateOverlay{ position:fixed; inset:0; z-index:9999; display:none; flex-direction:column;
+    align-items:center; justify-content:center; gap:18px; background:#151022; color:#fff;
+    text-align:center; padding:24px; font-family:'Baloo 2',sans-serif; }
+  #rotateOverlay .icon{ font-size:56px; display:inline-block; animation:rot 1.6s ease-in-out infinite; }
+  #rotateOverlay p{ font-family:'Press Start 2P',monospace; font-size:clamp(11px,3.4vw,15px);
+    line-height:1.8; max-width:320px; margin:0; }
+  @keyframes rot{ 0%,100%{ transform:rotate(0deg); } 50%{ transform:rotate(-90deg); } }
+  body.portrait-block #stage{ display:none; }
+  body.portrait-block #rotateOverlay{ display:flex; }
+</style>
+</head>
+<body>
+<div id="rotateOverlay">
+  <span class="icon">📱</span>
+  <p>PUTAR PERANGKAT ANDA<br>KE MODE LANDSCAPE<br>UNTUK BERMAIN</p>
+</div>
+<div id="stage">
+  <canvas id="game"></canvas>
+
+  <div id="hud">
+    <div class="hud-pill">SKOR <span id="scoreVal">0</span></div>
+    <div id="livesWrap"></div>
+    <div class="hud-pill">🪙 <span id="coinVal">0</span></div>
+  </div>
+
+  <div id="startScreen" class="overlay">
+    <h1 class="title">SUPER<br>RAHULLL</h1>
+    <p class="tagline">Berlari, melompat, kumpulkan koin!</p>
+    <button id="startBtn" class="big-btn">MULAI</button>
+    <p class="hint">Tahan tombol <b>LARI</b> untuk berlari &middot; Tekan <b>LOMPAT</b> untuk melompat<br>
+    Hindari batu &amp; semak duri, kumpulkan koin sebanyak-banyaknya.<br>
+    (Keyboard: panah kanan / D = lari, spasi / panah atas = lompat)</p>
+  </div>
+
+  <div id="gameOverScreen" class="overlay hidden">
+    <h2 class="title small">GAME OVER</h2>
+    <p class="tagline" id="finalStats"></p>
+    <button id="retryBtn" class="big-btn">MAIN LAGI</button>
+  </div>
+
+  <div id="controls">
+    <button id="runBtn" class="ctrl-btn run-btn"><span>LARI</span></button>
+    <button id="jumpBtn" class="ctrl-btn jump-btn"><span>LOMPAT</span></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ================= SETUP CANVAS =================
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d');
+  var CW = 0, CH = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var orientationOK = true;
+
+  function checkOrientation(){
+    orientationOK = window.innerWidth >= window.innerHeight;
+    document.body.classList.toggle('portrait-block', !orientationOK);
+  }
+
+  function tryLockLandscape(){
+    try{
+      if (screen.orientation && screen.orientation.lock){
+        screen.orientation.lock('landscape').catch(function(){});
+      }
+    } catch(e){}
+  }
+
+  function resize(){
+    CW = window.innerWidth;
+    CH = window.innerHeight;
+    canvas.width = CW * DPR;
+    canvas.height = CH * DPR;
+    canvas.style.width = CW + 'px';
+    canvas.style.height = CH + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    computeMetrics();
+    checkOrientation();
+  }
+  window.addEventListener('orientationchange', function(){ setTimeout(checkOrientation, 50); });
+
+  // ================= ASSET (SPRITE) LOADING =================
+  // Taruh file index.html ini sejajar dengan folder "rahul" berisi:
+  // Diam.png, runA.png, runB.png, runC.png, runD.png
+  var ASSET_PATH = 'rahul/';
+  var spriteFiles = { idle: 'Diam.png', a: 'runA.png', b: 'runB.png', c: 'runC.png', d: 'runD.png' };
+  var sprites = {};
+  Object.keys(spriteFiles).forEach(function(key){
+    var img = new Image();
+    var entry = { img: img, ready: false, failed: false };
+    img.onload = function(){ entry.ready = true; };
+    img.onerror = function(){ entry.failed = true; };
+    img.src = ASSET_PATH + spriteFiles[key];
+    sprites[key] = entry;
+  });
+  var runOrder = ['a','b','c','d']; // urutan animasi lari, 250ms per frame = 1 detik penuh
+
+  // ================= KONSTANTA GAME =================
+  var GRAVITY = 2200;
+  var JUMP_VELOCITY = -780;
+  var RUN_SPEED = 280; // px/detik saat tombol LARI ditahan
+  var FRAME_TIME = 0.25; // detik per frame animasi lari (4 frame x 0.25 = 1 detik)
+
+  // ================= STATE GAME =================
+  var state = 'start'; // start | playing | gameover
+  var groundTopY = 0;
+  var player = { xRatio:0.18, w:0, h:0, y:0, vy:0, onGround:true, running:false, invincible:0, frameIdx:0, frameTimer:0 };
+  var score = 0, coins = 0, lives = 3;
+  var scrollX = 0;
+  var obstacles = [];
+  var orbs = [];
+  var spawnTimer = 1;
+  var hitFlash = 0;
+  var clouds = [];
+
+  function initClouds(){
+    clouds = [];
+    for (var i=0;i<5;i++){
+      clouds.push({ xRatio: Math.random(), yRatio: 0.08+Math.random()*0.18, scale: 0.6+Math.random()*0.8, speed: 8+Math.random()*10 });
+    }
+  }
+  initClouds();
+
+  function computeMetrics(){
+    player.h = CH*0.16;
+    player.w = player.h*0.78;
+    groundTopY = CH*0.80;
+    if (player.onGround || state !== 'playing'){ player.y = groundTopY - player.h; }
+  }
+
+  // ================= HUD =================
+  var scoreVal = document.getElementById('scoreVal');
+  var coinVal = document.getElementById('coinVal');
+  var livesWrap = document.getElementById('livesWrap');
+  var startScreen = document.getElementById('startScreen');
+  var gameOverScreen = document.getElementById('gameOverScreen');
+  var finalStats = document.getElementById('finalStats');
+  var runBtn = document.getElementById('runBtn');
+  var jumpBtn = document.getElementById('jumpBtn');
+  var startBtn = document.getElementById('startBtn');
+  var retryBtn = document.getElementById('retryBtn');
+
+  function updateHUD(){
+    scoreVal.textContent = score;
+    coinVal.textContent = coins;
+    livesWrap.innerHTML = '';
+    for (var i=0;i<3;i++){
+      var span = document.createElement('span');
+      span.textContent = i < lives ? '❤' : '🖤';
+      livesWrap.appendChild(span);
+    }
+  }
+
+  // ================= AUDIO (bunyi sederhana, tanpa file) =================
+  var audioCtx = null;
+  function ensureAudio(){
+    if (!audioCtx){
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+    }
+  }
+  function beep(type){
+    if (!audioCtx) return;
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    var freq = 440, dur = 0.09, wave = 'sine';
+    if (type==='coin'){ freq=880; dur=0.09; wave='square'; }
+    else if (type==='jump'){ freq=520; dur=0.08; wave='triangle'; }
+    else if (type==='hit'){ freq=140; dur=0.18; wave='sawtooth'; }
+    o.type = wave; o.frequency.value = freq;
+    g.gain.value = 0.06;
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+    o.stop(audioCtx.currentTime + dur + 0.02);
+  }
+
+  // ================= INPUT =================
+  function handleRunStart(){ if (state==='playing') player.running = true; }
+  function handleRunEnd(){ player.running = false; }
+  function handleJump(){
+    if (state!=='playing') return;
+    if (player.onGround){
+      player.vy = JUMP_VELOCITY;
+      player.onGround = false;
+      beep('jump');
+    }
+  }
+
+  runBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); runBtn.classList.add('pressed'); handleRunStart(); });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    runBtn.addEventListener(ev, function(){ runBtn.classList.remove('pressed'); handleRunEnd(); });
+  });
+  jumpBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); jumpBtn.classList.add('pressed'); handleJump(); });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    jumpBtn.addEventListener(ev, function(){ jumpBtn.classList.remove('pressed'); });
+  });
+
+  window.addEventListener('keydown', function(e){
+    if (e.code==='ArrowRight' || e.code==='KeyD'){ handleRunStart(); }
+    if (e.code==='Space' || e.code==='ArrowUp' || e.code==='KeyW'){ e.preventDefault(); handleJump(); }
+  });
+  window.addEventListener('keyup', function(e){
+    if (e.code==='ArrowRight' || e.code==='KeyD'){ handleRunEnd(); }
+  });
+
+  // ================= SPAWN RINTANGAN & KOIN =================
+  function spawnObstacle(){
+    var type = Math.random()<0.5 ? 'rock' : 'bush';
+    var h = type==='rock' ? CH*(0.10+Math.random()*0.05) : CH*(0.09+Math.random()*0.04);
+    var w = h * (type==='rock' ? 1.1 : 1.3);
+    obstacles.push({ x: CW+40, w:w, h:h, type:type });
+  }
+  function spawnCoinGroup(){
+    var count = 1 + Math.floor(Math.random()*4);
+    var low = Math.random()<0.5;
+    var baseY = low ? groundTopY-CH*0.10 : groundTopY-CH*0.30;
+    for (var i=0;i<count;i++){
+      orbs.push({ x: CW+40+i*CH*0.09, y: baseY, r: CH*0.028, taken:false, bob: Math.random()*Math.PI*2 });
+    }
+  }
+
+  // ================= COLLISION =================
+  function checkCollisions(){
+    var px = CW*player.xRatio, pw = player.w, ph = player.h, py = player.y;
+    if (player.invincible<=0){
+      var inset = pw*0.15;
+      for (var i=0;i<obstacles.length;i++){
+        var o = obstacles[i];
+        if (px+inset < o.x+o.w && px+pw-inset > o.x && py+ph > groundTopY-o.h+2){
+          loseLife();
+          break;
+        }
+      }
+    }
+    for (var j=0;j<orbs.length;j++){
+      var c = orbs[j];
+      if (c.taken) continue;
+      var cy = c.y + Math.sin(performance.now()/300 + c.bob)*4;
+      var dx = (px+pw/2)-c.x, dy=(py+ph/2)-cy;
+      if (Math.sqrt(dx*dx+dy*dy) < (pw*0.4+c.r)){
+        c.taken = true; coins++; score += 10; beep('coin'); updateHUD();
+      }
+    }
+  }
+  function loseLife(){
+    lives--; player.invincible = 1.2; hitFlash = 0.4; beep('hit'); updateHUD();
+    if (lives<=0) endGame();
+  }
+
+  // ================= UPDATE =================
+  function update(dt){
+    clouds.forEach(function(c){
+      c.xRatio -= (c.speed*dt)/CW;
+      if (c.xRatio < -0.2) c.xRatio = 1.1;
+    });
+
+    if (state!=='playing') return;
+
+    if (!player.onGround){
+      player.vy += GRAVITY*dt;
+      player.y += player.vy*dt;
+      if (player.y >= groundTopY-player.h){
+        player.y = groundTopY-player.h; player.vy = 0; player.onGround = true;
+      }
+    }
+
+    if (player.running){
+      var d = RUN_SPEED*dt;
+      scrollX += d;
+      obstacles.forEach(function(o){ o.x -= d; });
+      orbs.forEach(function(c){ c.x -= d; });
+      spawnTimer -= dt;
+      if (spawnTimer<=0){
+        if (Math.random()<0.55) spawnCoinGroup(); else spawnObstacle();
+        spawnTimer = 0.9 + Math.random()*0.7;
+      }
+      player.frameTimer += dt;
+      if (player.frameTimer >= FRAME_TIME){
+        player.frameTimer = 0;
+        player.frameIdx = (player.frameIdx+1)%4;
+      }
+    } else {
+      player.frameIdx = 0; player.frameTimer = 0;
+    }
+
+    if (player.invincible>0) player.invincible -= dt;
+    if (hitFlash>0) hitFlash = Math.max(0, hitFlash-dt*1.5);
+
+    checkCollisions();
+    obstacles = obstacles.filter(function(o){ return o.x+o.w > -20; });
+    orbs = orbs.filter(function(c){ return !c.taken && c.x+c.r > -20; });
+  }
+
+  // ================= DRAW HELPERS =================
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawHillLayer(color, baseYRatio, speedFactor, spacing, ampRatio){
+    var baseY = CH*baseYRatio;
+    var offset = (scrollX*speedFactor) % spacing;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-spacing*2, CH);
+    for (var x=-spacing*2-offset; x<CW+spacing*2; x+=spacing){
+      ctx.lineTo(x, baseY);
+      ctx.quadraticCurveTo(x+spacing/2, baseY-CH*ampRatio, x+spacing, baseY);
+    }
+    ctx.lineTo(CW+spacing*2, CH);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawCloud(xRatio,yRatio,scale){
+    var x = xRatio*CW, y = yRatio*CH;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    [[-20,0,18],[0,-10,22],[20,0,18],[0,8,20]].forEach(function(p){
+      ctx.beginPath();
+      ctx.arc(x+p[0]*scale, y+p[1]*scale, p[2]*scale, 0, Math.PI*2);
+      ctx.fill();
+    });
+  }
+
+  function drawObstacle(o){
+    var baseY = groundTopY;
+    if (o.type==='rock'){
+      ctx.fillStyle = '#8B8680';
+      ctx.beginPath();
+      ctx.ellipse(o.x+o.w/2, baseY-o.h/2, o.w/2, o.h/2, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#6E6A63';
+      ctx.beginPath();
+      ctx.ellipse(o.x+o.w*0.35, baseY-o.h*0.35, o.w*0.16, o.h*0.16, 0, 0, Math.PI*2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#2F7A32';
+      for (var i=0;i<3;i++){
+        var bx = o.x + (i*o.w/3);
+        ctx.beginPath();
+        ctx.moveTo(bx, baseY);
+        ctx.lineTo(bx+o.w/6, baseY-o.h);
+        ctx.lineTo(bx+o.w/3, baseY);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawCoin(c){
+    var t = performance.now()/300 + c.bob;
+    var cy = c.y + Math.sin(t)*4;
+    var squash = Math.max(0.25, Math.abs(Math.cos(t*1.3)));
+    ctx.save();
+    ctx.translate(c.x, cy);
+    ctx.scale(squash, 1);
+    var grad = ctx.createRadialGradient(-c.r*0.3,-c.r*0.3,1,0,0,c.r);
+    grad.addColorStop(0, '#FFF3B0'); grad.addColorStop(0.5, '#FFD34D'); grad.addColorStop(1, '#C98E1D');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(0,0,c.r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#8A5D10'; ctx.lineWidth = Math.max(1,c.r*0.15); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFallbackCharacter(x,y,w,h,frame){
+    // dipakai hanya kalau gambar dari folder "rahul" belum berhasil dimuat
+    ctx.fillStyle = '#E4442B';
+    roundRect(x+w*0.15, y+h*0.35, w*0.7, h*0.5, w*0.15); ctx.fill();
+    ctx.fillStyle = '#F2C48D';
+    ctx.beginPath(); ctx.arc(x+w*0.5, y+h*0.22, w*0.28, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#2273B5';
+    ctx.beginPath(); ctx.arc(x+w*0.5, y+h*0.14, w*0.30, Math.PI, Math.PI*2); ctx.fill();
+    var legOffset = frame<0 ? 0 : (frame%2===0 ? -w*0.08 : w*0.08);
+    ctx.fillStyle = '#2273B5';
+    roundRect(x+w*0.22+legOffset, y+h*0.80, w*0.18, h*0.20, w*0.06); ctx.fill();
+    roundRect(x+w*0.60-legOffset, y+h*0.80, w*0.18, h*0.20, w*0.06); ctx.fill();
+  }
+
+  function drawPlayer(){
+    var px = CW*player.xRatio, py = player.y, w = player.w, h = player.h;
+    ctx.save();
+    if (player.invincible>0 && Math.floor(performance.now()/100)%2===0){ ctx.globalAlpha = 0.35; }
+    // bayangan di bawah karakter
+    var jumpProgress = Math.min(1, Math.max(0, (groundTopY-(py+h))/(CH*0.35)));
+    var shadowScale = Math.max(0.3, 1-jumpProgress);
+    ctx.globalAlpha *= 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(px+w/2, groundTopY+4, w*0.35*shadowScale, 6*shadowScale, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    var key = player.running ? runOrder[player.frameIdx] : 'idle';
+    var spr = sprites[key];
+    if (spr && spr.ready && !spr.failed){
+      ctx.drawImage(spr.img, px, py, w, h);
+    } else {
+      drawFallbackCharacter(px, py, w, h, player.running ? player.frameIdx : -1);
+    }
+    ctx.restore();
+  }
+
+  // ================= DRAW UTAMA =================
+  function draw(){
+    ctx.clearRect(0,0,CW,CH);
+
+    var sky = ctx.createLinearGradient(0,0,0,groundTopY);
+    sky.addColorStop(0, '#7EC8F2'); sky.addColorStop(1, '#BFE8FF');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0,0,CW,groundTopY);
+
+    var sx = CW*0.86, sy = CH*0.14, sr = Math.min(CW,CH)*0.06;
+    var glow = ctx.createRadialGradient(sx,sy,0,sx,sy,sr*2.2);
+    glow.addColorStop(0, '#FFF3B0'); glow.addColorStop(0.5, 'rgba(255,211,77,0.55)'); glow.addColorStop(1, 'rgba(255,211,77,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(sx,sy,sr*2.2,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#FFD34D';
+    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2); ctx.fill();
+
+    drawHillLayer('#8FD49A', 0.62, 0.15, CH*0.9, 0.10);
+    clouds.forEach(function(c){ drawCloud(c.xRatio, c.yRatio, c.scale); });
+    drawHillLayer('#5FBF6E', 0.72, 0.35, CH*0.7, 0.08);
+
+    ctx.fillStyle = '#8B5A2B';
+    ctx.fillRect(0, groundTopY, CW, CH-groundTopY);
+    ctx.fillStyle = '#4CAF50';
+    ctx.fillRect(0, groundTopY, CW, CH*0.025);
+
+    var dashSpacing = 40, dashOffset = scrollX % dashSpacing;
+    ctx.strokeStyle = '#6b431f'; ctx.lineWidth = 3;
+    for (var x=-dashOffset; x<CW; x+=dashSpacing){
+      ctx.beginPath(); ctx.moveTo(x, groundTopY+12); ctx.lineTo(x+18, groundTopY+12); ctx.stroke();
+    }
+
+    obstacles.forEach(drawObstacle);
+    orbs.forEach(function(c){ if(!c.taken) drawCoin(c); });
+    drawPlayer();
+
+    if (hitFlash>0){
+      ctx.fillStyle = 'rgba(220,30,30,' + (hitFlash*0.5) + ')';
+      ctx.fillRect(0,0,CW,CH);
+    }
+  }
+
+  // ================= GAME FLOW =================
+  function startGame(){
+    ensureAudio();
+    tryLockLandscape();
+    state = 'playing';
+    score = 0; coins = 0; lives = 3;
+    obstacles = []; orbs = [];
+    scrollX = 0; spawnTimer = 1;
+    player.vy = 0; player.onGround = true; player.running = false; player.invincible = 0;
+    player.frameIdx = 0; player.frameTimer = 0;
+    computeMetrics();
+    startScreen.classList.add('hidden');
+    gameOverScreen.classList.add('hidden');
+    updateHUD();
+  }
+  function endGame(){
+    state = 'gameover';
+    player.running = false;
+    finalStats.textContent = 'Skor: ' + score + ' \u00b7 Koin: ' + coins;
+    gameOverScreen.classList.remove('hidden');
+  }
+
+  startBtn.addEventListener('click', startGame);
+  retryBtn.addEventListener('click', startGame);
+
+  // ================= LOOP =================
+  var lastTime = performance.now();
+  function loop(now){
+    var dt = Math.min((now-lastTime)/1000, 0.033);
+    lastTime = now;
+    if (orientationOK){
+      update(dt);
+      draw();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('resize', resize);
+  resize();
+  updateHUD();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
