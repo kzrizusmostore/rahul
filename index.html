@@ -113,14 +113,20 @@
   }
 
   // ================= KARAKTER =================
-  // Cuma pakai 1 gambar: Diam.png. Efek "lari" disimulasikan lewat kode
-  // (miring + squash-stretch), bukan gambar tambahan.
+  // Diam.png = pose diam. runA/runB/runC/runD = 4 pose lari, bergantian tiap 250ms
+  // (total 4 x 250ms = 1 detik per siklus, berulang terus selama tombol LARI ditahan).
   var ASSET_PATH = 'Rahul/';
-  var charImg = new Image();
-  var charReady = false, charFailed = false;
-  charImg.onload = function(){ charReady = true; };
-  charImg.onerror = function(){ charFailed = true; };
-  charImg.src = ASSET_PATH + 'Diam.png';
+  var spriteFiles = { idle:'Diam.png', a:'runA.png', b:'runB.png', c:'runC.png', d:'runD.png' };
+  var sprites = {};
+  Object.keys(spriteFiles).forEach(function(key){
+    var img = new Image();
+    var entry = { img: img, ready:false, failed:false };
+    img.onload = function(){ entry.ready = true; };
+    img.onerror = function(){ entry.failed = true; };
+    img.src = ASSET_PATH + spriteFiles[key];
+    sprites[key] = entry;
+  });
+  var runOrder = ['a','b','c','d'];
 
 
 
@@ -397,20 +403,14 @@
   }
 
   function drawCharacter(x, y, w, h, running, frameIdx){
-    var t = performance.now()/1000;
-    var swingTable = [-1, -0.4, 1, 0.4]; // pola miring bergantian buat kesan lari
-    var tilt = running ? swingTable[frameIdx] * 10 : Math.sin(t*2.4)*1.5;
-    var squash = running ? 1 + Math.sin((frameIdx/4)*Math.PI*2)*0.06 : 1 + Math.sin(t*2.4)*0.01;
-    var hop = running ? Math.abs(swingTable[frameIdx]) * -h*0.04 : 0;
+    var key = running ? runOrder[frameIdx] : 'idle';
+    var spr = sprites[key];
 
     ctx.save();
-    ctx.translate(x + w/2, y + h + hop);
-    ctx.rotate(tilt * Math.PI/180);
-    ctx.scale(1/squash, squash);
-    ctx.translate(-w/2, -h);
+    ctx.translate(x, y);
 
-    if (charReady && !charFailed){
-      ctx.drawImage(charImg, 0, 0, w, h);
+    if (spr && spr.ready && !spr.failed){
+      ctx.drawImage(spr.img, 0, 0, w, h);
     } else {
       // placeholder netral selagi gambar belum berhasil dimuat dari folder Rahul
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
