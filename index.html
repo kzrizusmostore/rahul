@@ -17,6 +17,7 @@
     --ink:#2B2118;
     --cream:#FFF8E7;
     --run-1:#3EA6F2; --run-2:#2273B5;
+    --back-1:#7E57C2; --back-2:#4A2C82;
     --jump-1:#F2543E; --jump-2:#B52222;
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -54,12 +55,15 @@
   .big-btn:active{ transform:translateY(6px); box-shadow:0 0 0 #b8860b; }
 
   #controls{ position:absolute; bottom:max(20px,env(safe-area-inset-bottom)); left:0; right:0;
-    display:flex; justify-content:space-between; padding:0 24px; z-index:5; pointer-events:none; }
+    display:flex; justify-content:space-between; align-items:flex-end; padding:0 24px; z-index:5; pointer-events:none; }
+  #moveBtns{ display:flex; gap:12px; }
   .ctrl-btn{ pointer-events:auto; width:clamp(78px,22vw,108px); height:clamp(78px,22vw,108px);
     border-radius:50%; border:4px solid var(--ink); font-family:'Press Start 2P',monospace;
     font-size:clamp(9px,2.6vw,12px); color:#fff; user-select:none; touch-action:none;
     display:flex; align-items:center; justify-content:center; box-shadow:0 6px 0 rgba(0,0,0,.35);
     transition:transform .06s, box-shadow .06s; opacity:0.95; }
+  .back-btn{ background:linear-gradient(var(--back-1),var(--back-2));
+    width:clamp(62px,17vw,86px); height:clamp(62px,17vw,86px); font-size:clamp(8px,2.2vw,10px); align-self:flex-end; }
   .run-btn{ background:linear-gradient(var(--run-1),var(--run-2)); }
   .jump-btn{ background:linear-gradient(var(--jump-1),var(--jump-2)); }
   .ctrl-btn.pressed{ transform:translateY(6px); box-shadow:0 0 0 rgba(0,0,0,.35); }
@@ -80,9 +84,9 @@
     <h1 class="title">SUPER<br>RAHULLL</h1>
     <p class="tagline">Berlari, melompat, kumpulkan koin!</p>
     <button id="startBtn" class="big-btn">MULAI</button>
-    <p class="hint">Tahan tombol <b>LARI</b> untuk berlari &middot; Tekan <b>LOMPAT</b> untuk melompat<br>
+    <p class="hint">Tahan tombol <b>LARI</b> untuk maju &middot; Tahan <b>MUNDUR</b> untuk mundur &middot; Tekan <b>LOMPAT</b> untuk melompat<br>
     Hindari batu &amp; semak duri, kumpulkan koin sebanyak-banyaknya.<br>
-    (Keyboard: panah kanan / D = lari, spasi / panah atas = lompat)</p>
+    (Keyboard: panah kanan / D = maju, panah kiri / A = mundur, spasi / panah atas = lompat)</p>
   </div>
 
   <div id="gameOverScreen" class="overlay hidden">
@@ -92,7 +96,10 @@
   </div>
 
   <div id="controls">
-    <button id="runBtn" class="ctrl-btn run-btn"><span>LARI</span></button>
+    <div id="moveBtns">
+      <button id="backBtn" class="ctrl-btn back-btn"><span>MUNDUR</span></button>
+      <button id="runBtn" class="ctrl-btn run-btn"><span>LARI</span></button>
+    </div>
     <button id="jumpBtn" class="ctrl-btn jump-btn"><span>LOMPAT</span></button>
   </div>
 </div>
@@ -146,7 +153,7 @@
   // ================= STATE GAME =================
   var state = 'start'; // start | playing | gameover
   var groundTopY = 0;
-  var player = { xRatio:0.18, w:0, h:0, y:0, vy:0, onGround:true, running:false, invincible:0, frameIdx:0, frameTimer:0 };
+  var player = { xRatio:0.18, w:0, h:0, y:0, vy:0, onGround:true, running:false, movingBack:false, facing:1, invincible:0, frameIdx:0, frameTimer:0 };
   var score = 0, coins = 0, lives = 3;
   var scrollX = 0;
   var obstacles = [];
@@ -178,6 +185,7 @@
   var gameOverScreen = document.getElementById('gameOverScreen');
   var finalStats = document.getElementById('finalStats');
   var runBtn = document.getElementById('runBtn');
+  var backBtn = document.getElementById('backBtn');
   var jumpBtn = document.getElementById('jumpBtn');
   var startBtn = document.getElementById('startBtn');
   var retryBtn = document.getElementById('retryBtn');
@@ -218,8 +226,10 @@
   }
 
   // ================= INPUT =================
-  function handleRunStart(){ if (state==='playing') player.running = true; }
+  function handleRunStart(){ if (state==='playing'){ player.running = true; player.movingBack = false; player.facing = 1; } }
   function handleRunEnd(){ player.running = false; }
+  function handleBackStart(){ if (state==='playing'){ player.movingBack = true; player.running = false; player.facing = -1; } }
+  function handleBackEnd(){ player.movingBack = false; }
   function handleJump(){
     if (state!=='playing') return;
     if (player.onGround){
@@ -233,6 +243,10 @@
   ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
     runBtn.addEventListener(ev, function(){ runBtn.classList.remove('pressed'); handleRunEnd(); });
   });
+  backBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); backBtn.classList.add('pressed'); handleBackStart(); });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    backBtn.addEventListener(ev, function(){ backBtn.classList.remove('pressed'); handleBackEnd(); });
+  });
   jumpBtn.addEventListener('pointerdown', function(e){ e.preventDefault(); jumpBtn.classList.add('pressed'); handleJump(); });
   ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
     jumpBtn.addEventListener(ev, function(){ jumpBtn.classList.remove('pressed'); });
@@ -240,10 +254,12 @@
 
   window.addEventListener('keydown', function(e){
     if (e.code==='ArrowRight' || e.code==='KeyD'){ handleRunStart(); }
+    if (e.code==='ArrowLeft' || e.code==='KeyA'){ handleBackStart(); }
     if (e.code==='Space' || e.code==='ArrowUp' || e.code==='KeyW'){ e.preventDefault(); handleJump(); }
   });
   window.addEventListener('keyup', function(e){
     if (e.code==='ArrowRight' || e.code==='KeyD'){ handleRunEnd(); }
+    if (e.code==='ArrowLeft' || e.code==='KeyA'){ handleBackEnd(); }
   });
 
   // ================= SPAWN RINTANGAN & KOIN =================
@@ -307,15 +323,17 @@
       }
     }
 
-    if (player.running){
-      var d = RUN_SPEED*dt;
+    if (player.running || player.movingBack){
+      var d = RUN_SPEED*dt*(player.movingBack ? -1 : 1);
       scrollX += d;
       obstacles.forEach(function(o){ o.x -= d; });
       orbs.forEach(function(c){ c.x -= d; });
-      spawnTimer -= dt;
-      if (spawnTimer<=0){
-        if (Math.random()<0.55) spawnCoinGroup(); else spawnObstacle();
-        spawnTimer = 0.9 + Math.random()*0.7;
+      if (!player.movingBack){
+        spawnTimer -= dt;
+        if (spawnTimer<=0){
+          if (Math.random()<0.55) spawnCoinGroup(); else spawnObstacle();
+          spawnTimer = 0.9 + Math.random()*0.7;
+        }
       }
       player.frameTimer += dt;
       if (player.frameTimer >= FRAME_TIME){
@@ -410,12 +428,17 @@
     ctx.restore();
   }
 
-  function drawCharacter(x, y, w, h, running, frameIdx, jumping, jumpFrameIdx){
+  function drawCharacter(x, y, w, h, running, frameIdx, jumping, jumpFrameIdx, facing){
     var key = jumping ? jumpOrder[jumpFrameIdx] : (running ? runOrder[frameIdx] : 'idle');
     var spr = sprites[key];
 
     ctx.save();
     ctx.translate(x, y);
+    if (facing < 0){
+      // hadap belakang/kiri: cerminkan sprite secara horizontal di tempat
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+    }
 
     if (spr && spr.ready && !spr.failed){
       ctx.drawImage(spr.img, 0, 0, w, h);
@@ -457,12 +480,12 @@
       // memakai kurva naik-turun (0 di lepas landas & mendarat, puncak di tengah lompatan) berbasis fase vertikal (vRatio),
       // supaya proporsional walau tinggi lompatan aktualnya kecil dibanding tinggi layar.
       var airProgress = (vRatio + 1) / 2; // 0 = baru lompat, 0.5 = puncak, 1 = hampir mendarat
-      jumpXOffset = Math.sin(airProgress * Math.PI) * w * 0.35;
+      jumpXOffset = Math.sin(airProgress * Math.PI) * w * 0.35 * player.facing;
 
-      // jump5 dinaikkan lagi sekitar 25% dari tinggi karakter
-      if (jumpFrameIdx === 4){ jumpYExtra = -h * 0.25; }
+      // jump5 dinaikkan sekitar 15% dari tinggi karakter
+      if (jumpFrameIdx === 4){ jumpYExtra = -h * 0.15; }
     }
-    drawCharacter(px + jumpXOffset, py + jumpYExtra, w, h, player.running, player.frameIdx, !player.onGround, jumpFrameIdx);
+    drawCharacter(px + jumpXOffset, py + jumpYExtra, w, h, player.running || player.movingBack, player.frameIdx, !player.onGround, jumpFrameIdx, player.facing);
     ctx.restore();
   }
 
