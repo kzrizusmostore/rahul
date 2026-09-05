@@ -56,7 +56,7 @@
 
   #controls{ position:absolute; bottom:max(20px,env(safe-area-inset-bottom)); left:0; right:0;
     display:flex; justify-content:space-between; align-items:flex-end; padding:0 24px; z-index:5; pointer-events:none; }
-  #moveBtns{ display:flex; gap:12px; }
+  #moveBtns{ display:flex; gap:clamp(20px,6vw,32px); }
   .ctrl-btn{ pointer-events:auto; width:clamp(78px,22vw,108px); height:clamp(78px,22vw,108px);
     border-radius:50%; border:4px solid var(--ink); font-family:'Press Start 2P',monospace;
     font-size:clamp(9px,2.6vw,12px); color:#fff; user-select:none; touch-action:none;
@@ -111,7 +111,7 @@
   // ================= SETUP CANVAS =================
   var canvas = document.getElementById('game');
   var ctx = canvas.getContext('2d');
-  var CW = 0, CH = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var CW = 0, CH = 0, DPR = Math.min(window.devicePixelRatio || 1, 3);
 
   function resize(){
     CW = window.innerWidth;
@@ -121,6 +121,8 @@
     canvas.style.width = CW + 'px';
     canvas.style.height = CH + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     computeMetrics();
   }
 
@@ -148,6 +150,7 @@
   var GRAVITY = 2200;
   var JUMP_VELOCITY = -780;
   var RUN_SPEED = 280; // px/detik saat tombol LARI ditahan
+  var JUMP_SPEED_MULT = 1.4; // pengali kecepatan scroll saat sedang di udara (melompat)
   var FRAME_TIME = 0.25; // detik per frame animasi lari (4 frame x 0.25 = 1 detik)
 
   // ================= STATE GAME =================
@@ -324,7 +327,8 @@
     }
 
     if (player.running || player.movingBack){
-      var d = RUN_SPEED*dt*(player.movingBack ? -1 : 1);
+      var speedMult = player.onGround ? 1 : JUMP_SPEED_MULT;
+      var d = RUN_SPEED*speedMult*dt*(player.movingBack ? -1 : 1);
       scrollX += d;
       obstacles.forEach(function(o){ o.x -= d; });
       orbs.forEach(function(c){ c.x -= d; });
@@ -353,6 +357,14 @@
   }
 
   // ================= DRAW HELPERS =================
+  function shade(hex, amt){
+    var num = parseInt(hex.slice(1),16);
+    var r = Math.max(0,Math.min(255,(num>>16)+amt));
+    var g = Math.max(0,Math.min(255,((num>>8)&0xff)+amt));
+    var b = Math.max(0,Math.min(255,(num&0xff)+amt));
+    return 'rgb('+r+','+g+','+b+')';
+  }
+
   function roundRect(x,y,w,h,r){
     ctx.beginPath();
     ctx.moveTo(x+r,y);
@@ -366,7 +378,10 @@
   function drawHillLayer(color, baseYRatio, speedFactor, spacing, ampRatio){
     var baseY = CH*baseYRatio;
     var offset = (scrollX*speedFactor) % spacing;
-    ctx.fillStyle = color;
+    var grad = ctx.createLinearGradient(0, baseY-CH*ampRatio, 0, CH);
+    grad.addColorStop(0, shade(color, 26));
+    grad.addColorStop(1, shade(color, -24));
+    ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.moveTo(-spacing*2, CH);
     for (var x=-spacing*2-offset; x<CW+spacing*2; x+=spacing){
@@ -391,24 +406,33 @@
   function drawObstacle(o){
     var baseY = groundTopY;
     if (o.type==='rock'){
-      ctx.fillStyle = '#8B8680';
+      var rg = ctx.createRadialGradient(o.x+o.w*0.34, baseY-o.h*0.68, o.w*0.04, o.x+o.w/2, baseY-o.h/2, o.w*0.62);
+      rg.addColorStop(0, '#BDB7AE'); rg.addColorStop(0.6, '#8B8680'); rg.addColorStop(1, '#5E5A54');
+      ctx.fillStyle = rg;
       ctx.beginPath();
       ctx.ellipse(o.x+o.w/2, baseY-o.h/2, o.w/2, o.h/2, 0, 0, Math.PI*2);
       ctx.fill();
-      ctx.fillStyle = '#6E6A63';
-      ctx.beginPath();
-      ctx.ellipse(o.x+o.w*0.35, baseY-o.h*0.35, o.w*0.16, o.h*0.16, 0, 0, Math.PI*2);
-      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      [[0.62,0.55,0.15],[0.42,0.72,0.10],[0.68,0.30,0.08]].forEach(function(p){
+        ctx.beginPath();
+        ctx.ellipse(o.x+o.w*p[0], baseY-o.h*p[1], o.w*p[2], o.h*p[2]*0.75, 0, 0, Math.PI*2);
+        ctx.fill();
+      });
     } else {
-      ctx.fillStyle = '#2F7A32';
       for (var i=0;i<3;i++){
         var bx = o.x + (i*o.w/3);
+        var bg = ctx.createLinearGradient(bx, baseY-o.h, bx, baseY);
+        bg.addColorStop(0, '#3F9A45'); bg.addColorStop(1, '#1F5C22');
+        ctx.fillStyle = bg;
         ctx.beginPath();
         ctx.moveTo(bx, baseY);
         ctx.lineTo(bx+o.w/6, baseY-o.h);
         ctx.lineTo(bx+o.w/3, baseY);
         ctx.closePath();
         ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 1;
+        ctx.stroke();
       }
     }
   }
@@ -510,9 +534,29 @@
     clouds.forEach(function(c){ drawCloud(c.xRatio, c.yRatio, c.scale); });
     drawHillLayer('#5FBF6E', 0.72, 0.35, CH*0.7, 0.08);
 
-    ctx.fillStyle = '#8B5A2B';
+    var dirtGrad = ctx.createLinearGradient(0, groundTopY, 0, CH);
+    dirtGrad.addColorStop(0, '#9C6B37'); dirtGrad.addColorStop(1, '#5c3a1a');
+    ctx.fillStyle = dirtGrad;
     ctx.fillRect(0, groundTopY, CW, CH-groundTopY);
-    ctx.fillStyle = '#4CAF50';
+
+    var speckleSpacing = 34, speckleOffset = scrollX % speckleSpacing;
+    var dirtH = Math.max(1, CH-groundTopY-16);
+    ctx.fillStyle = 'rgba(0,0,0,0.13)';
+    for (var spx=-speckleOffset; spx<CW+speckleSpacing; spx+=speckleSpacing){
+      var row = Math.round((spx+speckleOffset)/speckleSpacing);
+      var spy = groundTopY + 12 + ((row*37) % dirtH);
+      ctx.beginPath(); ctx.arc(spx + (row%2)*speckleSpacing*0.5, spy, 2.1, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    for (var spx2=-speckleOffset+14; spx2<CW+speckleSpacing; spx2+=speckleSpacing){
+      var row2 = Math.round((spx2+speckleOffset)/speckleSpacing);
+      var spy2 = groundTopY + 12 + ((row2*61+9) % dirtH);
+      ctx.beginPath(); ctx.arc(spx2, spy2, 1.6, 0, Math.PI*2); ctx.fill();
+    }
+
+    var grassGrad = ctx.createLinearGradient(0, groundTopY, 0, groundTopY+CH*0.025);
+    grassGrad.addColorStop(0, '#63C169'); grassGrad.addColorStop(1, '#3d9142');
+    ctx.fillStyle = grassGrad;
     ctx.fillRect(0, groundTopY, CW, CH*0.025);
 
     var dashSpacing = 40, dashOffset = scrollX % dashSpacing;
