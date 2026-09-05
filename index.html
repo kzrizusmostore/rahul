@@ -84,9 +84,7 @@
     <h1 class="title">SUPER<br>RAHULLL</h1>
     <p class="tagline">Berlari, melompat, kumpulkan koin!</p>
     <button id="startBtn" class="big-btn">MULAI</button>
-    <p class="hint">Tahan tombol <b>LARI</b> untuk maju &middot; Tahan <b>MUNDUR</b> untuk mundur &middot; Tekan <b>LOMPAT</b> untuk melompat<br>
-    Hindari batu &amp; semak duri, kumpulkan koin sebanyak-banyaknya.<br>
-    (Keyboard: panah kanan / D = maju, panah kiri / A = mundur, spasi / panah atas = lompat)</p>
+    
   </div>
 
   <div id="gameOverScreen" class="overlay hidden">
@@ -156,12 +154,14 @@
   // ================= STATE GAME =================
   var state = 'start'; // start | playing | gameover
   var groundTopY = 0;
-  var player = { xRatio:0.18, w:0, h:0, y:0, vy:0, onGround:true, running:false, movingBack:false, facing:1, invincible:0, frameIdx:0, frameTimer:0 };
+  var player = { xRatio:0.18, w:0, h:0, y:0, vy:0, onGround:true, standingPlatform:null, running:false, movingBack:false, facing:1, invincible:0, frameIdx:0, frameTimer:0 };
   var score = 0, coins = 0, lives = 3;
   var scrollX = 0;
   var obstacles = [];
   var orbs = [];
+  var platforms = [];
   var spawnTimer = 1;
+  var platformSpawnTimer = 2.5;
   var hitFlash = 0;
   var clouds = [];
 
@@ -177,7 +177,9 @@
     player.h = CH*0.26;
     player.w = player.h*0.78;
     groundTopY = CH*0.80;
-    if (player.onGround || state !== 'playing'){ player.y = groundTopY - player.h; }
+    if (player.onGround || state !== 'playing'){
+      player.y = (player.standingPlatform ? player.standingPlatform.y : groundTopY) - player.h;
+    }
   }
 
   // ================= HUD =================
@@ -280,6 +282,21 @@
       orbs.push({ x: CW+40+i*CH*0.09, y: baseY, r: CH*0.028, taken:false, bob: Math.random()*Math.PI*2 });
     }
   }
+  function spawnPlatform(){
+    // tinggi lompatan maksimum ~= JUMP_VELOCITY^2/(2*GRAVITY) ~ 138px, jadi elevasi platform
+    // sengaja dijaga di 70-115px biar selalu bisa dicapai & didarati dari atas.
+    var elevation = 70 + Math.random()*45;
+    var pw = CH*(0.30+Math.random()*0.18);
+    var py = groundTopY - elevation;
+    var plat = { x: CW+40, y: py, w: pw, h: 18 };
+    platforms.push(plat);
+    if (Math.random()<0.6){
+      var count = 1 + Math.floor(Math.random()*3);
+      for (var pi=0; pi<count; pi++){
+        orbs.push({ x: plat.x+plat.w*0.22+pi*plat.w*0.28, y: py-CH*0.07, r: CH*0.028, taken:false, bob: Math.random()*Math.PI*2 });
+      }
+    }
+  }
 
   // ================= COLLISION =================
   function checkCollisions(){
@@ -318,11 +335,35 @@
 
     if (state!=='playing') return;
 
+    var pxCenter = CW*player.xRatio + player.w/2;
+
     if (!player.onGround){
+      var prevFeetY = player.y + player.h;
       player.vy += GRAVITY*dt;
       player.y += player.vy*dt;
-      if (player.y >= groundTopY-player.h){
-        player.y = groundTopY-player.h; player.vy = 0; player.onGround = true;
+      var feetY = player.y + player.h;
+
+      var landedOn = null; // null = tanah utama kalau kena
+      if (player.vy >= 0){
+        for (var pi2=0; pi2<platforms.length; pi2++){
+          var pl2 = platforms[pi2];
+          if (pxCenter > pl2.x && pxCenter < pl2.x+pl2.w && prevFeetY <= pl2.y+1 && feetY >= pl2.y){
+            if (!landedOn || pl2.y < landedOn.y) landedOn = pl2;
+          }
+        }
+        if (landedOn){
+          player.y = landedOn.y - player.h; player.vy = 0; player.onGround = true; player.standingPlatform = landedOn;
+        } else if (feetY >= groundTopY){
+          player.y = groundTopY - player.h; player.vy = 0; player.onGround = true; player.standingPlatform = null;
+        }
+      }
+    } else if (player.standingPlatform){
+      // masih di atas platform yang sama? kalau sudah lewat tepinya, mulai jatuh lagi
+      var sp = player.standingPlatform;
+      if (pxCenter > sp.x && pxCenter < sp.x+sp.w){
+        player.y = sp.y - player.h;
+      } else {
+        player.onGround = false; player.standingPlatform = null;
       }
     }
 
@@ -332,11 +373,17 @@
       scrollX += d;
       obstacles.forEach(function(o){ o.x -= d; });
       orbs.forEach(function(c){ c.x -= d; });
+      platforms.forEach(function(p){ p.x -= d; });
       if (!player.movingBack){
         spawnTimer -= dt;
         if (spawnTimer<=0){
           if (Math.random()<0.55) spawnCoinGroup(); else spawnObstacle();
           spawnTimer = 0.9 + Math.random()*0.7;
+        }
+        platformSpawnTimer -= dt;
+        if (platformSpawnTimer<=0){
+          spawnPlatform();
+          platformSpawnTimer = 3.5 + Math.random()*2.5;
         }
       }
       player.frameTimer += dt;
@@ -354,6 +401,11 @@
     checkCollisions();
     obstacles = obstacles.filter(function(o){ return o.x+o.w > -20; });
     orbs = orbs.filter(function(c){ return !c.taken && c.x+c.r > -20; });
+    platforms = platforms.filter(function(p){
+      var keep = p.x+p.w > -20;
+      if (!keep && player.standingPlatform===p){ player.standingPlatform = null; }
+      return keep;
+    });
   }
 
   // ================= DRAW HELPERS =================
@@ -401,6 +453,22 @@
       ctx.arc(x+p[0]*scale, y+p[1]*scale, p[2]*scale, 0, Math.PI*2);
       ctx.fill();
     });
+  }
+
+  function drawPlatform(p){
+    var grad = ctx.createLinearGradient(p.x, p.y, p.x, p.y+p.h);
+    grad.addColorStop(0, '#E8A857'); grad.addColorStop(1, '#B5762A');
+    ctx.fillStyle = grad;
+    roundRect(p.x, p.y, p.w, p.h, 6);
+    ctx.fill();
+    ctx.strokeStyle = '#2B2118'; ctx.lineWidth = 3;
+    roundRect(p.x, p.y, p.w, p.h, 6);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(43,33,24,0.35)'; ctx.lineWidth = 1.5;
+    var seg = p.w/4;
+    for (var si=1; si<4; si++){
+      ctx.beginPath(); ctx.moveTo(p.x+seg*si, p.y+3); ctx.lineTo(p.x+seg*si, p.y+p.h-3); ctx.stroke();
+    }
   }
 
   function drawObstacle(o){
@@ -566,6 +634,7 @@
     }
 
     obstacles.forEach(drawObstacle);
+    platforms.forEach(drawPlatform);
     orbs.forEach(function(c){ if(!c.taken) drawCoin(c); });
     drawPlayer();
 
@@ -583,9 +652,9 @@
     }
     state = 'playing';
     score = 0; coins = 0; lives = 3;
-    obstacles = []; orbs = [];
-    scrollX = 0; spawnTimer = 1;
-    player.vy = 0; player.onGround = true; player.running = false; player.invincible = 0;
+    obstacles = []; orbs = []; platforms = [];
+    scrollX = 0; spawnTimer = 1; platformSpawnTimer = 2.5;
+    player.vy = 0; player.onGround = true; player.standingPlatform = null; player.running = false; player.invincible = 0;
     player.frameIdx = 0; player.frameTimer = 0;
     computeMetrics();
     startScreen.classList.add('hidden');
